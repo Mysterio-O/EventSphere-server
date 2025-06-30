@@ -305,6 +305,49 @@ async function run() {
 
         })
 
+        app.put('/updateEvent/:id', async (req, res) => {
+            const updateElement = req.body;
+            const { id } = req.params;
+            // console.log(updateElement,id)
+
+            try {
+
+                if (!updateElement) {
+                    return res.status(404).send({ message: "No document found to update" })
+                }
+
+                if (!id) {
+                    return res.status(404).send({ message: "event id not found!" });
+                }
+
+                const filter = { _id: new ObjectId(id) };
+                const event = await eventCollection.findOneAndUpdate(filter, { $set: updateElement },
+                    { returnDocument: 'after' })
+                res.status(200).send({ message: "Update successful." });
+            }
+            catch (error) {
+                res.status(500).send({ message: "internal server error" });
+            }
+
+        })
+
+        app.delete('/delete-event/:id', async (req, res) => {
+            const { id } = req.params;
+
+            try {
+                const filter = { _id: new ObjectId(id) };
+
+                const result = await eventCollection.findOneAndDelete(filter);
+                // console.log(result);
+                res.status(200).send({ message: 'Event deleted' });
+            }
+            catch (error) {
+                console.log(error);
+                res.status(500).send({ message: "Internal server error" });
+            }
+
+        })
+
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
