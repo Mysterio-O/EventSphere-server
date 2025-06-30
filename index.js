@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -173,19 +173,110 @@ async function run() {
                 let filter = {};
 
                 const requestEmail = req.query;
-                // console.log(requestEmail);
+                const filterDate = req.query;
+                const { filterByDate } = filterDate;
                 const { email } = requestEmail;
-                console.log(email);
+                console.log(email, filterByDate);
 
                 if (email) {
                     filter = { email: email }
                 }
-                const events = await eventCollection.find(filter).toArray();
+
+
+                // Get the current date
+                const now = new Date();
+
+                // Initialize date range variables
+                let startDate, endDate;
+
+                console.log('filter by date->', filterByDate, filterDate);
+
+                if (filterByDate) {
+                    switch (filterByDate) {
+                        case 'today':
+                            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                            break;
+
+                        case 'lastWeek':
+                            // Get last week's same weekday
+                            const lastWeekStart = new Date(now);
+                            lastWeekStart.setDate(now.getDate() - 7);
+                            startDate = new Date(lastWeekStart.getFullYear(), lastWeekStart.getMonth(), lastWeekStart.getDate());
+                            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                            break;
+
+                        case 'currentMonth':
+                            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                            break;
+
+                        case 'lastMonth':
+                            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                            endDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    if (startDate && endDate) {
+                        filter.eventDate = {
+                            $gte: startDate.toISOString().slice(0, 10),
+                            $lt: endDate.toISOString().slice(0, 10)
+                        };
+                    }
+                }
+
+
+                const events = await eventCollection.aggregate([
+                    { $match: filter },
+                    {
+                        $addFields: {
+                            combinedDateTime: {
+                                $dateFromString: {
+                                    dateString: { $concat: ['$eventDate', 'T', '$eventTime'] },
+                                    format: "%Y-%m-%dT%H:%M"
+                                }
+                            }
+                        }
+                    },
+                    { $sort: { combinedDateTime: -1 } }
+                ]).toArray();
+                console.log(events);
                 return res.status(200).send({ message: 'found events', events });
             }
             catch (error) {
                 res.status(404).send({ message: 'Events not found!', error });
             }
+
+        })
+
+        app.patch('/joinEvent/:id', async (req, res) => {
+            const { id } = req.params;
+            const userEmail = req.query;
+            const { email } = userEmail;
+
+            if (!email) {
+                return res.status(400).send({ message: 'Email is required to join an event.' });
+            }
+
+            // console.log('Email is->', email)
+            // console.log('id from params->', id);
+
+            const filter = { _id: new ObjectId(id) };
+            // console.log('filter->', filter);
+
+            const updateDoc = {
+                $inc: { attendeeCount: 1 },
+                $addToSet: { joinedMembers: email } // prevents duplicates
+            };
+            const options = { returnDocument: 'after' };
+
+            const updateEvent = await eventCollection.findOneAndUpdate(filter, updateDoc, options);
+            console.log('event is->', updateEvent);
+            res.send(updateEvent);
+
 
         })
 
