@@ -193,9 +193,17 @@ async function run() {
 
                 if (filterByDate) {
                     switch (filterByDate) {
-                        case 'today':
-                            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                        case 'thisWeek':
+                            // Get start of the current week (Sunday)
+                            const weekStart = new Date(now);
+                            weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+
+                            // Get end of the current week (next Sunday)
+                            const weekEnd = new Date(weekStart);
+                            weekEnd.setDate(weekStart.getDate() + 7);
+
+                            startDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+                            endDate = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate());
                             break;
 
                         case 'lastWeek':
@@ -250,6 +258,23 @@ async function run() {
                 res.status(404).send({ message: 'Events not found!', error });
             }
 
+        });
+
+        app.get('/event/:id', async (req, res) => {
+            const { id } = req.params;
+            if (!id) {
+                return res.status(400).send({ message: 'event id not found! try again wth a valid id' });
+            }
+            try {
+                if (id) {
+                    const filter = { _id: new ObjectId(id) };
+                    const event = await eventCollection.findOne(filter);
+                    res.status(200).send({ message: 'Event found!', event });
+                }
+            }
+            catch (error) {
+                res.status(400).send({ message: "Event not found!", error });
+            }
         })
 
         app.patch('/joinEvent/:id', async (req, res) => {
