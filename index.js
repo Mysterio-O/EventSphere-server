@@ -1,13 +1,21 @@
 require('dotenv').config();
 const express = require('express');
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
+
+const SECRET_KEY = process.env.JWT_SECRET
 
 
 const client = new MongoClient(process.env.MONGO_URI, {
@@ -18,6 +26,22 @@ const client = new MongoClient(process.env.MONGO_URI, {
     }
 });
 
+
+function verifyTokenFromCookie(req, res, next) {
+    const token = req.cookies['auth-token'];
+    if (!token) return res.status(401).send({ message: 'Unauthorized: No token' });
+
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(403).send({ message: 'Forbidden: Invalid token' });
+    }
+}
+
+
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -26,6 +50,7 @@ async function run() {
 
         const usersCollection = client.db('eventDB').collection('usersCollection');
 
+        const eventCollection = client.db("eventDB").collection('eventCollection');
 
         // users authentication api
 
@@ -85,11 +110,61 @@ async function run() {
 
             if (user?.password !== userPassword) {
                 return res.status(401).send({ message: 'Unauthorized! Password didnt match' });
-            } else {
-                return res.status(200).send({ message: 'User successfully logged in using email and password' });
             }
+            const token = jwt.sign({ email: user.email }, SECRET_KEY, { expiresIn: '2h' });
+
+            res.cookie('auth-token', token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'Strict',
+                maxAge: 2 * 60 * 60 * 1000 // 2 hours
+            });
+
+            res.status(200).send({
+                message: 'Login successful',
+                user: {
+                    email: user.email,
+                    name: user.displayName,
+                    photoURL: user.photoURL
+                }
+            });
 
 
+        });
+
+        app.get('/user/profile', verifyTokenFromCookie, async (req, res) => {
+            const user = await usersCollection.findOne({ email: req.user.email });
+            res.send(user);
+        });
+
+        app.post('/logout', (req, res) => {
+            res.clearCookie('auth-token', {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'Strict'
+            });
+            res.send({ message: 'Logged out successfully' });
+        });
+
+
+        // event apis
+
+        app.post('/addEvent', async (req, res) => {
+            try {
+                const eventInfo = req.body;
+                console.log(eventInfo);
+                if (eventInfo) {
+                    const result = await eventCollection.insertOne(eventInfo);
+                    console.log(result);
+                    if (result?.acknowledged || result?.insertedId) {
+                        return res.status(201).send({ message: 'New event added successfully!', result })
+                    }
+                }
+            }
+            catch (error) {
+                console.log(error);
+                res.send("error adding new event!", error)
+            }
         })
 
 
