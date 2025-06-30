@@ -45,7 +45,7 @@ function verifyTokenFromCookie(req, res, next) {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
 
         const usersCollection = client.db('eventDB').collection('usersCollection');
@@ -165,6 +165,28 @@ async function run() {
                 console.log(error);
                 res.send("error adding new event!", error)
             }
+        });
+
+        app.get('/events', async (req, res) => {
+
+            try {
+                let filter = {};
+
+                const requestEmail = req.query;
+                // console.log(requestEmail);
+                const { email } = requestEmail;
+                console.log(email);
+
+                if (email) {
+                    filter = { email: email }
+                }
+                const events = await eventCollection.find(filter).toArray();
+                return res.status(200).send({ message: 'found events', events });
+            }
+            catch (error) {
+                res.status(404).send({ message: 'Events not found!', error });
+            }
+
         })
 
 
