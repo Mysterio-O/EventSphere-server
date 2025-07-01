@@ -8,7 +8,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: ["https://eventsphere-mysterio.netlify.app","http://localhost:5173"],
     credentials: true
 }));
 app.use(express.json());
@@ -115,8 +115,8 @@ async function run() {
 
             res.cookie('auth-token', token, {
                 httpOnly: true,
-                secure: true,
-                sameSite: 'Strict',
+                secure: process.env.NODE_ENV === "production",
+                sameSite: 'None',
                 maxAge: 2 * 60 * 60 * 1000 // 2 hours
             });
 
@@ -140,8 +140,8 @@ async function run() {
         app.post('/logout', (req, res) => {
             res.clearCookie('auth-token', {
                 httpOnly: true,
-                secure: true,
-                sameSite: 'Strict'
+                secure: process.env.NODE_ENV === "production",
+                sameSite: 'None'
             });
             res.send({ message: 'Logged out successfully' });
         });
@@ -398,7 +398,7 @@ async function run() {
         })
 
 
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
