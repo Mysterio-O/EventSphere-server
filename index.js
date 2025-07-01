@@ -275,6 +275,55 @@ async function run() {
             catch (error) {
                 res.status(400).send({ message: "Event not found!", error });
             }
+        });
+
+        app.get('/topEvents', async (req, res) => {
+            try {
+                const topEvents = await eventCollection.find().sort({ attendeeCount: -1 }).limit(5).toArray();
+                if (topEvents) {
+                    res.status(200).send({ message: 'found top events data', topEvents });
+                } else {
+                    res.status(400).send({ message: "didn't found top events data" });
+                }
+            }
+            catch (error) {
+                res.status(500).send({ message: "Internal server error" });
+            }
+        });
+
+        app.get('/upcomingEvents', async (req, res) => {
+            console.log('entered')
+            try {
+                const now = new Date();
+
+                const upcomingEvents = await eventCollection.aggregate([
+                    {
+                        $addFields: {
+                            eventDateTime: {
+                                $toDate: {
+                                    $concat: ["$eventDate", "T", "$eventTime"]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $match: {
+                            eventDateTime: { $gte: now }
+                        }
+                    },
+                    {
+                        $sort: { eventDateTime: 1 }
+                    },
+                    {
+                        $limit: 3
+                    }
+                ]).toArray();
+                console.log(upcomingEvents)
+                res.status(200).send(upcomingEvents);
+
+            } catch (error) {
+                res.status(500).send({ message: "Internal server error" });
+            }
         })
 
         app.patch('/joinEvent/:id', async (req, res) => {
